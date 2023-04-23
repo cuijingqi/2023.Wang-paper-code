@@ -1,0 +1,87 @@
+import numpy as np
+import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+# 导入数据
+df = pd.read_excel('xxx.xlsx')
+data = df.iloc[:, 1:].values
+
+# 定义聚类数和重复次数
+n_clusters =3
+n_repeats =10
+
+# 定义KMeans++聚类函数
+def kmeans_plus_plus(X, n_clusters):
+    centers = []
+    # 随机选择一个点作为第一个聚类中心
+    center = X[np.random.choice(range(len(X)))]
+    centers.append(center)
+    # 依次选择其他聚类中心
+    for i in range(n_clusters - 1):
+        # 计算每个点到已有聚类中心的最短距离
+        distances = [min([np.linalg.norm(x - c) for c in centers]) for x in X]
+        # 根据距离计算每个点被选为下一个聚类中心的概率
+        probabilities = distances / np.sum(distances)
+        # 根据概率随机选择下一个聚类中心
+        center = X[np.random.choice(range(len(X)), p=probabilities)]
+        centers.append(center)
+    return np.array(centers)
+# 初始化一个空列表来保存每次聚类的轮廓系数
+scores = []
+# 多次运行KMeans++聚类并计算最优轮廓系数
+best_score = -1
+best_centers = None
+for i in range(n_repeats):
+    # 初始化聚类中心
+    centers = kmeans_plus_plus(data, n_clusters)
+    # 运行KMeans聚类
+    kmeans = KMeans(n_clusters=n_clusters, init=centers)
+    labels = kmeans.fit_predict(data)
+    # 计算轮廓系数
+    score = silhouette_score(data, labels)
+    # 将轮廓系数添加到scores列表中
+    scores.append(score)
+    print(f'第 {i+1} 次聚类的初始中心为：\n{centers}')
+    print(f'第 {i+1} 次聚类的最终中心为：\n{kmeans.cluster_centers_}')
+    print(f'第 {i+1} 次聚类的聚类结果为：\n{labels}')
+    print(f'第 {i+1} 次聚类的轮廓系数为：{score:.4f}\n')
+
+    # 更新最优结果
+    if score > best_score:
+        best_score = score
+        
+        best_centers = kmeans.cluster_centers_
+        best_labels = labels
+# 将所有轮廓系数保存到DataFrame并导出到Excel
+df_scores = pd.DataFrame({'Silhouette Score': scores})
+df_scores.to_excel('kmeans_scores.xlsx', index=False)
+
+
+# 将最优聚类结果导出到Excel
+name=['A', 'B']
+
+df = pd.DataFrame(data,columns=name)
+df['cluster_labels'] = best_labels
+cluster_centers_df = pd.DataFrame(best_centers)
+writer = pd.ExcelWriter('kmeans_clusters.xlsx',engine='xlsxwriter')
+
+df.to_excel(writer, sheet_name="分类结果",index=False)
+
+cluster_centers_df.to_excel(writer, sheet_name="聚类中心", index=False)
+
+writer.save()
+# df_result = pd.DataFrame({ data, 'Cluster': best_labels})
+
+# df_result.to_excel('kmeans_clusters310.xlsx', index=False)
+print(f'最优轮廓系数为：{best_score:.4f}，最优聚类中心为：{best_centers}')
+
+
+# Scatter plot of the data points with different colors for each cluster
+plt.scatter(data[:, 0], data[:, 1], c=best_labels)
+# Plot the cluster centers as black circles
+plt.scatter(best_centers[:, 0], best_centers[:, 1], c='black', marker='o', s=100)
+plt.xlabel('Feature 1')
+plt.ylabel('Feature 2')
+plt.title('Best KMeans Clustering Result')
+plt.show()

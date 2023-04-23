@@ -1,0 +1,183 @@
+#数量化理论Ⅱ
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+
+from pandas import Series
+from numpy.linalg import inv #矩阵求逆
+from numpy import dot  #矩阵点乘
+
+
+dataset = pd.read_csv("XXX.csv") #读入数据文件
+
+#手动输入
+n=14 #样本数
+nt=2 #样本组数
+nt1=4
+nt2=10
+nt3=0
+nt4=0
+mt=Series(list([0,nt1,nt1+nt2,nt1+nt2+nt3,nt1+nt2+nt3+nt4]))
+
+
+xm =3#项目，待改成自动提取
+
+# 类
+r1=4
+r2=6
+r3=2
+r4=0
+rm = r1+r2+r3+r4
+rm1=Series(list([0,r1,r1+r2,r1+r2+r3,r1+r2+r3+r4]))
+
+x0=dataset.iloc[:,1:rm+1] #总
+
+x1= dataset.iloc[mt[0]:mt[1],1:rm+1]
+x2= dataset.iloc[mt[1]:mt[2],1:rm+1] #手动调整组内，根据样本组数
+# x3= dataset.iloc[mt[2]:mt[3],1:rm+1]
+# data=[1,2,3,4,5,6,7,8,9,10]
+# for i in range(10):
+#     exec('x{} = {}'.format(i+1, dataset.iloc[mt[i+1]:mt[i+2],1:rm+1]))
+# print(x1,x2,x3,x4,x5)
+print("x0:",x0)
+print("x1:",x1)
+print("x2:",x2)
+# print("x3:",x3)
+
+
+#组内均值矩阵
+print("组内均值矩阵")
+mx1=np.mean(x1,0)#手动调整,根据样本组数调整
+mx2=np.mean(x2,0)
+# mx3=np.mean(x3,0)
+print("mx1:",mx1)
+print("mx2:",mx2)
+# print("mx3:",mx3)
+#手动调整
+midx1=pd.concat([mx1]*nt1,axis=1)  #手动调整,根据样本组数调整
+print("midx1:",midx1)
+midx2=pd.concat([mx2]*nt2,axis=1)  #手动调整
+print("midx2:",midx2)
+# midx3=pd.concat([mx3]*nt3,axis=1)  #手动调整
+# print("midx3:",midx3)
+mx=np.array(pd.concat((midx1,midx2),axis=1)).T#手动调整
+print("mx:",mx)
+
+
+#总均值矩阵
+print("总均值矩阵")
+zx1=np.mean(x0,0)
+print("zx1:",zx1)
+zx=np.array(pd.concat([zx1]*(mt[nt]),axis=1)).T 
+print("zx:",zx)
+
+#组间离差矩阵C
+print("组间离差矩阵C")
+C=np.dot((mx-zx).T,(mx-zx))
+print("C:",C)
+C0=np.linalg.det(C)
+print("C行列式值",C0)
+
+
+   
+
+#总离差矩阵D
+print("总离差矩阵D")
+D=np.dot((x0-zx).T,(x0-zx))
+print("D:",D)
+D0=np.linalg.det(D)
+print("D行列式值",D0)
+
+if D0>=0.001:#根据D行列式值调整
+    C2=C
+    D2=D
+    
+else:
+    #C*矩阵，从C中删除与bj1（j=1/2….m）所对应的行和列，
+    print("C*矩阵")
+
+    C1=np.delete(C,rm1.iloc[0:xm],axis=0)
+
+   # print("C1*:",C1)
+    C2=np.delete(C1,rm1.iloc[0:xm],axis=1)
+ 
+
+    #D*矩阵，从C中删除与bj1（j=1/2….m）所对应的行和列
+    print("D*矩阵")
+    D1=np.delete(D,rm1.iloc[0:xm],axis=0)
+
+    # print("D1*:",D1)
+    D2=np.delete(D1,rm1.iloc[0:xm],axis=1)
+print("C*:",C2)
+print("D*:",D2)
+
+def LU_decomposition(A):#D*=L'L函数
+
+    n = len(A[0])#矩阵的行数
+    n = len(A[0])#矩阵的行数
+    L = np.zeros([n, n])#构造n*n的0矩阵
+    for i in range(n):#0,1,2,3,4
+        if i==0:
+            L[0][0]=(A[0][0])**0.5
+            for j in range(i+1, n):#1,2,3,,[i+1,n)
+                L[j][0] = A[j][0]/L[0][0]
+        else:
+            for j in range(1,n):#Ljj
+                temp = 0           
+                for k in range(0, j):
+                    temp = temp + L[j][k] **2 
+                L[j][j] = (A[j][j] - temp)**0.5
+                          
+            for j in range(i+1,n): #Lij 
+                temp = 0
+                for k in range(0, i):                     
+                    temp = temp + L[j][k]*L[i][k]
+                L[j][i] = (A[j][i] - temp)/L[j][j]         
+    return L  
+
+LT = LU_decomposition(D2)
+
+print("L'矩阵是：",LT)
+
+#L'转置矩阵
+L=LT.T
+print("L矩阵是：",L)
+
+#L'逆CL逆
+
+MC=np.dot(np.dot(np.linalg.inv(LT),C2),np.linalg.inv(L))
+
+print("L-1'CL-1矩阵是：",MC)
+#求最大特征值和特征向量
+lamda = np.linalg.eig(MC)
+
+for i in range(len(lamda[0])):
+    print('特征值：{0}\n对应的特征向量：\n{1}\n'.format(lamda[0][i], np.transpose([lamda[1][:,i]])))
+
+index = np.argmax(lamda[0])
+lamda_max = np.real(lamda[0][index])#最大特征值
+vector = lamda[1][:,index]
+vector_final = np.transpose((np.real(vector)))#最大特征值的特征向量
+
+print('最大特征值为：{0}\n对应的特征向量：\n{1}'.format(lamda_max, vector_final))
+#判别系数
+print(np.linalg.inv(L))
+b1=np.dot(np.linalg.inv(L),vector_final)
+b2=pd.Series(b1)
+print("判别系数b:",b2)
+
+
+#判别得分
+if D0>=0.001:#根据D的行列式值调整
+   DS1=x0
+else:
+   DS1=np.delete(np.array(x0),rm1.iloc[0:xm],axis=1) 
+
+
+
+print("x*:",DS1)
+y=np.dot(DS1,b2)
+print("y'':",y)
+print("y'':",type(y))
+
+y.to_csv("综合得分.csv")

@@ -1,0 +1,58 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+#导入数据
+data=pd.read_excel('xx.xlsx')
+
+
+#数据正向化标准化处理未处理
+
+label_need=data.keys()[1:]
+data1=data[label_need].values
+print('data1',data1)
+data2=data1.copy()
+ 
+data2 = np.zeros(data1.shape)
+for i in range(data1.shape[1]):
+    mean_val = np.mean(data1[:,i])
+    data2[:,i] = data1[:,i] - mean_val 
+
+
+#对比性
+# the=np.std(data2,axis=0)
+the= np.nan_to_num(np.std(data2,axis=0), nan=0.0001)
+print(the)
+data3=data2.copy()
+#矛盾性
+data3=list(map(list,zip(*data2))) #矩阵转置
+   #求皮尔逊相关系数
+r= np.nan_to_num(np.corrcoef(data3), nan=0.0001)
+f=np.sum(1-r,axis=1)
+print(f)
+#信息承载量
+c=the*f
+print(c)
+w=c/sum(c)  #计算权重
+print(w)
+Score=np.dot(data2,w)
+print(Score)
+# Score=(s-min(s))/(max(s)-min(s)) *(65-46)+46#计算得分,将比分
+
+df_data = pd.DataFrame(data, columns=label_need)
+df_data['Score'] = Score
+
+df_w = pd.DataFrame({'指标变异性': the, '指标冲突性': f, '信息量': c, '权重': w})
+
+# 保存数据
+
+with pd.ExcelWriter('CRITIC权重法结果-xx.xlsx') as writer:
+    # write df_data and df_score to one sheet
+    df_data.to_excel(writer, sheet_name='Data and Score', index=False)
+    # write df_w to another sheet
+    df_w.to_excel(writer, sheet_name='信息', index=False)
+#绘制权重柱状图
+plt.bar(label_need, w)
+plt.title('Weight Bar Chart')
+plt.xlabel('Criteria')
+plt.ylabel('Weight')
+plt.show()
